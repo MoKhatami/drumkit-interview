@@ -227,12 +227,12 @@ func handleCreateLoad(w http.ResponseWriter, r *http.Request) {
 	}
 
 	jsonData, _ := json.Marshal(payload)
-	req, _ := http.NewRequest("POST", "https://my-sandbox.turvo.com/api/shipments", bytes.NewBuffer(jsonData))
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Content-Type", "application/json")
+	turvoReq, _ := http.NewRequest("POST", "https://my-sandbox.turvo.com/api/shipments", bytes.NewBuffer(jsonData))
+	turvoReq.Header.Set("Authorization", "Bearer "+token)
+	turvoReq.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := client.Do(turvoReq)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to create shipment: %v", err), http.StatusInternalServerError)
 		return
