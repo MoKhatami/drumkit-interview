@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
+// const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
 
 interface Customer {
     name: string;
@@ -53,7 +53,7 @@ const App: React.FC = () => {
     const fetchLoads = async (): Promise<void> => {
         setLoading(true);
         try {
-            const response = await fetch(`${API_BASE_URL}/api/loads`);
+            const response = await fetch(`$/api/loads`);
             const data = await response.json();
             setLoads(data.loads || []);
         } catch (error) {
@@ -67,7 +67,7 @@ const App: React.FC = () => {
         setLoading(true);
 
         try {
-            const response = await fetch(`${API_BASE_URL}/api/loads`, {
+            const response = await fetch(`$/api/loads`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -108,7 +108,7 @@ const App: React.FC = () => {
     };
 
     const deleteLoad = async (id: string) => {
-        await fetch(`${API_BASE_URL}/api/loads/${id}`, { method: 'DELETE' });
+        await fetch(`$/api/loads/${id}`, { method: 'DELETE' });
         fetchLoads();
     };
 
