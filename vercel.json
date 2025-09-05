@@ -1,16 +1,14 @@
 {
+  "buildCommand": "cd frontend && npm run build",
+  "outputDirectory": "frontend/build",
   "routes": [
     {
       "src": "/api/loads",
       "dest": "/api/loads.go"
     },
     {
-      "src": "/frontend/(.*)",
-      "dest": "/frontend/$1"
-    },
-    {
       "src": "/(.*)",
-      "dest": "/frontend/$1"
+      "dest": "/frontend/build/$1"
     }
   ]
 }
