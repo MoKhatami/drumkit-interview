@@ -27,7 +27,12 @@ type TurvoAuthResponse struct {
 }
 
 type TurvoShipment struct {
-	ID      string `json:"id"`
+	ID            string `json:"id"`
+	ProjectFields struct {
+		Title struct {
+			DisplayID string `json:"displayId"`
+		} `json:"title"`
+	} `json:"projectFields"`
 	Details struct {
 		Lane struct {
 			Start string `json:"start"`
@@ -139,7 +144,7 @@ func handleGetLoads(w http.ResponseWriter, r *http.Request) {
 	var loads []Load
 	for _, shipment := range turvoResp.Shipments {
 		load := Load{
-			ID:          shipment.ID,
+			ID:          shipment.ProjectFields.Title.DisplayID,
 			Origin:      shipment.Details.Lane.Start,
 			Destination: shipment.Details.Lane.End,
 			Status:      shipment.Details.Status.Description,
