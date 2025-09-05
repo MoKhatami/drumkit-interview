@@ -1,27 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
 
-// const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
-
-interface Customer {
-    name: string;
-}
-
-interface Broker {
-    name: string;
-}
-
-interface Location {
-    city: string;
-}
-
 interface Load {
-    externalTMSLoadID: string;
+    id: string;
+    origin: string;
+    destination: string;
+    customer: string;
+    carrier: string;
     status: string;
-    customer: Customer;
-    pickup: Location;
-    consignee: Location;
-    broker: Broker;
+    created_at: string;
 }
 
 interface FormData {
@@ -53,9 +40,9 @@ const App: React.FC = () => {
     const fetchLoads = async (): Promise<void> => {
         setLoading(true);
         try {
-            const response = await fetch(`$/api/loads`);
+            const response = await fetch(`/api/loads`);
             const data = await response.json();
-            setLoads(data.loads || []);
+            setLoads(data || []);
         } catch (error) {
             console.error('Error fetching loads:', error);
         }
@@ -67,12 +54,20 @@ const App: React.FC = () => {
         setLoading(true);
 
         try {
-            const response = await fetch(`$/api/loads`, {
+            const loadData = {
+                origin: `${formData.pickup}, ${formData.pickupState}`,
+                destination: `${formData.delivery}, ${formData.deliveryState}`,
+                customer: formData.customer,
+                carrier: 'Default Carrier', // You might want to add this to the form
+                status: 'active'
+            };
+
+            const response = await fetch(`/api/loads`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(formData),
+                body: JSON.stringify(loadData),
             });
 
             if (response.ok) {
@@ -108,7 +103,7 @@ const App: React.FC = () => {
     };
 
     const deleteLoad = async (id: string) => {
-        await fetch(`$/api/loads/${id}`, { method: 'DELETE' });
+        await fetch(`/api/loads?id=${id}`, { method: 'DELETE' });
         fetchLoads();
     };
 
@@ -388,7 +383,7 @@ const App: React.FC = () => {
                                     <tr style={{ backgroundColor: '#f8f9fa' }}>
                                         <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Load ID</th>
                                         <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Customer</th>
-                                        <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Broker</th>
+                                        <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Carrier</th>
                                         <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Route</th>
                                         <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Status</th>
                                         <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Actions</th>
@@ -403,17 +398,17 @@ const App: React.FC = () => {
                                         </tr>
                                     ) : (
                                         loads.slice(0, maxLoads).map((load, index) => (
-                                            <tr key={load.externalTMSLoadID || index} style={{ borderBottom: '1px solid #dee2e6' }}>
-                                                <td style={{ padding: '12px' }}>{load.externalTMSLoadID}</td>
-                                                <td style={{ padding: '12px' }}>{load.customer?.name || 'Unknown'}</td>
-                                                <td style={{ padding: '12px' }}>{load.broker?.name || 'Unknown'}</td>
-                                                <td style={{ padding: '12px' }}>{load.pickup?.city} → {load.consignee?.city}</td>
+                                            <tr key={load.id || index} style={{ borderBottom: '1px solid #dee2e6' }}>
+                                                <td style={{ padding: '12px' }}>{load.id}</td>
+                                                <td style={{ padding: '12px' }}>{load.customer || 'Unknown'}</td>
+                                                <td style={{ padding: '12px' }}>{load.carrier || 'Unknown'}</td>
+                                                <td style={{ padding: '12px' }}>{load.origin} → {load.destination}</td>
                                                 <td style={{ padding: '12px' }}>
                                                     <span style={{
                                                         padding: '4px 8px',
                                                         borderRadius: '4px',
-                                                        backgroundColor: load.status === 'Tendered' ? '#d4edda' : '#f8d7da',
-                                                        color: load.status === 'Tendered' ? '#155724' : '#721c24',
+                                                        backgroundColor: load.status === 'active' ? '#d4edda' : '#f8d7da',
+                                                        color: load.status === 'active' ? '#155724' : '#721c24',
                                                         fontSize: '12px'
                                                     }}>
                                                         {load.status}
@@ -421,7 +416,7 @@ const App: React.FC = () => {
                                                 </td>
                                                 <td style={{ padding: '12px' }}>
                                                     <button
-                                                        onClick={() => deleteLoad(load.externalTMSLoadID)}
+                                                        onClick={() => deleteLoad(load.id)}
                                                         style={{
                                                             padding: '4px 8px',
                                                             backgroundColor: '#dc3545',
