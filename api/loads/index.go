@@ -29,20 +29,28 @@ type TurvoAuthResponse struct {
 type TurvoShipment struct {
 	ID      string `json:"id"`
 	Details struct {
+		Lane struct {
+			Start string `json:"start"`
+			End   string `json:"end"`
+		} `json:"lane"`
+		CustomerOrders []struct {
+			Customer struct {
+				Name string `json:"name"`
+			} `json:"customer"`
+		} `json:"customer_orders"`
 		Contributors []struct {
-			Type string `json:"type"`
-			Name string `json:"name"`
+			ContributorUser struct {
+				Name string `json:"name"`
+			} `json:"contributorUser"`
+			Title struct {
+				Value string `json:"value"`
+			} `json:"title"`
 		} `json:"contributors"`
-		Stops []struct {
-			Type     string `json:"type"`
-			Location struct {
-				City  string `json:"city"`
-				State string `json:"state"`
-			} `json:"location"`
-		} `json:"stops"`
+		Status struct {
+			Description string `json:"description"`
+		} `json:"status"`
+		Date string `json:"date"`
 	} `json:"details"`
-	Status    string `json:"status"`
-	CreatedAt string `json:"createdAt"`
 }
 
 type TurvoShipmentsResponse struct {
@@ -131,27 +139,23 @@ func handleGetLoads(w http.ResponseWriter, r *http.Request) {
 	var loads []Load
 	for _, shipment := range turvoResp.Shipments {
 		load := Load{
-			ID:        shipment.ID,
-			Status:    shipment.Status,
-			CreatedAt: shipment.CreatedAt,
+			ID:          shipment.ID,
+			Origin:      shipment.Details.Lane.Start,
+			Destination: shipment.Details.Lane.End,
+			Status:      shipment.Details.Status.Description,
+			CreatedAt:   shipment.Details.Date,
 		}
 
-		// Extract origin and destination
-		for _, stop := range shipment.Details.Stops {
-			location := fmt.Sprintf("%s, %s", stop.Location.City, stop.Location.State)
-			if stop.Type == "pickup" {
-				load.Origin = location
-			} else if stop.Type == "delivery" {
-				load.Destination = location
-			}
+		// Extract customer name
+		if len(shipment.Details.CustomerOrders) > 0 {
+			load.Customer = shipment.Details.CustomerOrders[0].Customer.Name
 		}
 
-		// Extract customer and carrier
+		// Extract carrier/broker from contributors
 		for _, contributor := range shipment.Details.Contributors {
-			if contributor.Type == "customer" {
-				load.Customer = contributor.Name
-			} else if contributor.Type == "carrier" {
-				load.Carrier = contributor.Name
+			if contributor.Title.Value == "Broker" {
+				load.Carrier = contributor.ContributorUser.Name
+				break
 			}
 		}
 
