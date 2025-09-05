@@ -234,18 +234,18 @@ func handleCreateLoad(w http.ResponseWriter, r *http.Request) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		http.Error(w, "Failed to create shipment", http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("Failed to create shipment: %v", err), http.StatusInternalServerError)
 		return
 	}
 	defer resp.Body.Close()
 
+	body, _ := io.ReadAll(resp.Body)
+	
 	if resp.StatusCode != 200 && resp.StatusCode != 201 {
-		body, _ := io.ReadAll(resp.Body)
-		http.Error(w, fmt.Sprintf("Turvo API error: %s", string(body)), resp.StatusCode)
+		http.Error(w, fmt.Sprintf("Turvo API error (status %d): %s", resp.StatusCode, string(body)), resp.StatusCode)
 		return
 	}
 
-	body, _ := io.ReadAll(resp.Body)
 	var createdShipment map[string]interface{}
 	json.Unmarshal(body, &createdShipment)
 
