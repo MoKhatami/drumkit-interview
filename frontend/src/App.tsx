@@ -3,6 +3,7 @@ import './App.css';
 
 interface Load {
     id: string;
+    numericId?: string;
     origin: string;
     destination: string;
     customer: string;
