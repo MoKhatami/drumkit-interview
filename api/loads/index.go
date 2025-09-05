@@ -265,21 +265,29 @@ func handleDeleteLoad(w http.ResponseWriter, r *http.Request) {
 
 	token, err := getTurvoToken()
 	if err != nil {
-		http.Error(w, "Authentication failed", http.StatusUnauthorized)
+		http.Error(w, fmt.Sprintf("Authentication failed: %v", err), http.StatusUnauthorized)
 		return
 	}
 
-	req, _ := http.NewRequest("DELETE", "https://my-sandbox.turvo.com/api/shipments/"+id, nil)
-	req.Header.Set("Authorization", "Bearer "+token)
+	// Try to delete using the provided ID
+	deleteReq, _ := http.NewRequest("DELETE", "https://my-sandbox.turvo.com/api/shipments/"+id, nil)
+	deleteReq.Header.Set("Authorization", "Bearer "+token)
 
 	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := client.Do(deleteReq)
 	if err != nil {
-		http.Error(w, "Failed to delete shipment", http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("Failed to delete shipment: %v", err), http.StatusInternalServerError)
 		return
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != 200 && resp.StatusCode != 204 {
+		body, _ := io.ReadAll(resp.Body)
+		http.Error(w, fmt.Sprintf("Delete failed (status %d): %s", resp.StatusCode, string(body)), resp.StatusCode)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"message":"Load deleted successfully"}`))
 }
