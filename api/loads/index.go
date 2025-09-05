@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 )
 
@@ -181,10 +180,6 @@ func handleCreateLoad(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse origin and destination
-	originParts := strings.Split(load.Origin, ", ")
-	destParts := strings.Split(load.Destination, ", ")
-	
 	payload := map[string]interface{}{
 		"ltlShipment": false,
 		"startDate": map[string]interface{}{
