@@ -1,0 +1,23 @@
+{
+  "ServiceName": "drumkit-turvo-backend",
+  "SourceConfiguration": {
+    "ImageRepository": {
+      "ImageIdentifier": "YOUR_ECR_URI:latest",
+      "ImageConfiguration": {
+        "Port": "8080",
+        "RuntimeEnvironmentVariables": {
+          "TURVO_OAUTH_TOKEN_URL": "https://my-sandbox-publicapi.turvo.com/v1/oauth/token",
+          "TURVO_CLIENT_ID": "publicapi",
+          "TURVO_CLIENT_SECRET": "secret",
+          "TURVO_USERNAME": "axle@wickerparklogistics.com",
+          "TURVO_PASSWORD": "DZJ@pcu_qzd8ecz0fgw",
+          "TURVO_API_KEY": "9VjKgnIlQS1255cn7cRvJ6jNf8Z4MElP1PGgBTsH"
+        }
+      }
+    }
+  },
+  "InstanceConfiguration": {
+    "Cpu": "0.25 vCPU",
+    "Memory": "0.5 GB"
+  }
+}
