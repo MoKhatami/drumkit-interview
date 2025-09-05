@@ -73,6 +73,11 @@ func getTurvoToken() (string, error) {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != 200 {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("auth failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
 	var authResp TurvoAuthResponse
 	json.NewDecoder(resp.Body).Decode(&authResp)
 	return authResp.AccessToken, nil
@@ -104,7 +109,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 func handleGetLoads(w http.ResponseWriter, r *http.Request) {
 	token, err := getTurvoToken()
 	if err != nil {
-		http.Error(w, "Authentication failed", http.StatusUnauthorized)
+		http.Error(w, fmt.Sprintf("Authentication failed: %v", err), http.StatusUnauthorized)
 		return
 	}
 
