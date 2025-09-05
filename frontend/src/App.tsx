@@ -416,7 +416,7 @@ const App: React.FC = () => {
                                                 </td>
                                                 <td style={{ padding: '12px' }}>
                                                     <button
-                                                        onClick={() => deleteLoad(load.id)}
+                                                        onClick={() => deleteLoad(load.numericId)}
                                                         style={{
                                                             padding: '4px 8px',
                                                             backgroundColor: '#dc3545',

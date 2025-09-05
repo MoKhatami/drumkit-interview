@@ -260,8 +260,8 @@ func handleCreateLoad(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleDeleteLoad(w http.ResponseWriter, r *http.Request) {
-	displayId := r.URL.Query().Get("id")
-	if displayId == "" {
+	numericId := r.URL.Query().Get("id")
+	if numericId == "" {
 		http.Error(w, "ID parameter required", http.StatusBadRequest)
 		return
 	}
@@ -272,40 +272,11 @@ func handleDeleteLoad(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get all shipments to find the numeric ID for this display ID
-	shipmentsReq, _ := http.NewRequest("GET", "https://my-sandbox.turvo.com/api/shipments/list", nil)
-	shipmentsReq.Header.Set("Authorization", "Bearer "+token)
-	shipmentsReq.Header.Set("Accept", "application/json")
-
-	client := &http.Client{}
-	shipmentsResp, err := client.Do(shipmentsReq)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to get shipments: %v", err), http.StatusInternalServerError)
-		return
-	}
-	defer shipmentsResp.Body.Close()
-
-	var turvoResp TurvoShipmentsResponse
-	json.NewDecoder(shipmentsResp.Body).Decode(&turvoResp)
-
-	// Find the numeric ID for this display ID
-	var numericId string
-	for _, shipment := range turvoResp.Shipments {
-		if shipment.ProjectFields.Title.DisplayID == displayId {
-			numericId = fmt.Sprintf("%v", shipment.ID)
-			break
-		}
-	}
-
-	if numericId == "" {
-		http.Error(w, fmt.Sprintf("Shipment not found for displayId: %s", displayId), http.StatusNotFound)
-		return
-	}
-
-	// Delete using the numeric ID
+	// Delete using the numeric ID directly
 	deleteReq, _ := http.NewRequest("DELETE", "https://my-sandbox.turvo.com/api/shipments/"+numericId, nil)
 	deleteReq.Header.Set("Authorization", "Bearer "+token)
 
+	client := &http.Client{}
 	resp, err := client.Do(deleteReq)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to delete shipment: %v", err), http.StatusInternalServerError)
@@ -323,5 +294,5 @@ func handleDeleteLoad(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Return error details for debugging
-	http.Error(w, fmt.Sprintf("Delete failed (status %d): %s. Tried numeric ID: %s for displayId: %s", resp.StatusCode, string(body), numericId, displayId), resp.StatusCode)
+	http.Error(w, fmt.Sprintf("Delete failed (status %d): %s", resp.StatusCode, string(body)), resp.StatusCode)
 }
