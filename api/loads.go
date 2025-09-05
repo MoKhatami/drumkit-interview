@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -79,6 +78,7 @@ func getTurvoToken() (string, error) {
 	return authResp.AccessToken, nil
 }
 
+// Handler is the main entry point for Vercel
 func Handler(w http.ResponseWriter, r *http.Request) {
 	// Enable CORS
 	w.Header().Set("Access-Control-Allow-Origin", "*")
