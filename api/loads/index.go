@@ -272,40 +272,11 @@ func handleDeleteLoad(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// First, get all shipments to find the numeric ID for this display ID
-	shipmentsReq, _ := http.NewRequest("GET", "https://my-sandbox.turvo.com/api/shipments/list", nil)
-	shipmentsReq.Header.Set("Authorization", "Bearer "+token)
-	shipmentsReq.Header.Set("Accept", "application/json")
-
-	client := &http.Client{}
-	shipmentsResp, err := client.Do(shipmentsReq)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to get shipments: %v", err), http.StatusInternalServerError)
-		return
-	}
-	defer shipmentsResp.Body.Close()
-
-	var turvoResp TurvoShipmentsResponse
-	json.NewDecoder(shipmentsResp.Body).Decode(&turvoResp)
-
-	// Find the numeric ID for this display ID
-	var numericId string
-	for _, shipment := range turvoResp.Shipments {
-		if shipment.ProjectFields.Title.DisplayID == displayId {
-			numericId = fmt.Sprintf("%d", shipment.ProjectFields.ShipmentID)
-			break
-		}
-	}
-
-	if numericId == "" {
-		http.Error(w, "Shipment not found", http.StatusNotFound)
-		return
-	}
-
-	// Now delete using the numeric ID
-	deleteReq, _ := http.NewRequest("DELETE", "https://my-sandbox.turvo.com/api/shipments/"+numericId, nil)
+	// Try deleting with the displayId first
+	deleteReq, _ := http.NewRequest("DELETE", "https://my-sandbox.turvo.com/api/shipments/"+displayId, nil)
 	deleteReq.Header.Set("Authorization", "Bearer "+token)
 
+	client := &http.Client{}
 	resp, err := client.Do(deleteReq)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to delete shipment: %v", err), http.StatusInternalServerError)
@@ -313,13 +284,15 @@ func handleDeleteLoad(w http.ResponseWriter, r *http.Request) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 && resp.StatusCode != 204 {
-		body, _ := io.ReadAll(resp.Body)
-		http.Error(w, fmt.Sprintf("Delete failed (status %d): %s", resp.StatusCode, string(body)), resp.StatusCode)
+	body, _ := io.ReadAll(resp.Body)
+	
+	if resp.StatusCode == 200 || resp.StatusCode == 204 {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"message":"Load deleted successfully"}`))
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"message":"Load deleted successfully"}`))
+	// If that failed, return the error details for debugging
+	http.Error(w, fmt.Sprintf("Delete failed (status %d): %s. Tried ID: %s", resp.StatusCode, string(body), displayId), resp.StatusCode)
 }
