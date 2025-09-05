@@ -175,8 +175,85 @@ func handleCreateLoad(w http.ResponseWriter, r *http.Request) {
 	var load Load
 	json.NewDecoder(r.Body).Decode(&load)
 
-	// For now, just return success - the load will appear after refresh
-	load.ID = fmt.Sprintf("temp-%d", time.Now().Unix())
+	token, err := getTurvoToken()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Authentication failed: %v", err), http.StatusUnauthorized)
+		return
+	}
+
+	// Parse origin and destination
+	originParts := strings.Split(load.Origin, ", ")
+	destParts := strings.Split(load.Destination, ", ")
+	
+	payload := map[string]interface{}{
+		"ltlShipment": false,
+		"startDate": map[string]interface{}{
+			"date":     time.Now().Add(24 * time.Hour).Format(time.RFC3339),
+			"timeZone": "America/New_York",
+		},
+		"endDate": map[string]interface{}{
+			"date":     time.Now().Add(48 * time.Hour).Format(time.RFC3339),
+			"timeZone": "America/New_York",
+		},
+		"lane": map[string]interface{}{
+			"start": load.Origin,
+			"end":   load.Destination,
+		},
+		"customerOrder": []map[string]interface{}{
+			{
+				"customer": map[string]interface{}{
+					"name": load.Customer,
+					"id":   load.Customer,
+				},
+				"items": []map[string]interface{}{
+					{
+						"name":        "General Freight",
+						"description": "General freight",
+						"qty":         1,
+						"quantity":    1,
+						"unit": map[string]interface{}{
+							"key":   "6000",
+							"value": "Pieces",
+						},
+						"itemCategory": map[string]interface{}{
+							"key":   "22300",
+							"value": "Other",
+						},
+					},
+				},
+			},
+		},
+		"carrierOrder": []map[string]interface{}{},
+	}
+
+	jsonData, _ := json.Marshal(payload)
+	req, _ := http.NewRequest("POST", "https://my-sandbox.turvo.com/api/shipments", bytes.NewBuffer(jsonData))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		http.Error(w, "Failed to create shipment", http.StatusInternalServerError)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 && resp.StatusCode != 201 {
+		body, _ := io.ReadAll(resp.Body)
+		http.Error(w, fmt.Sprintf("Turvo API error: %s", string(body)), resp.StatusCode)
+		return
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	var createdShipment map[string]interface{}
+	json.Unmarshal(body, &createdShipment)
+
+	if id, ok := createdShipment["id"]; ok {
+		load.ID = fmt.Sprintf("%v", id)
+	} else {
+		load.ID = fmt.Sprintf("temp-%d", time.Now().Unix())
+	}
 	load.Status = "active"
 	load.CreatedAt = time.Now().Format(time.RFC3339)
 
