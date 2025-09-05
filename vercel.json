@@ -2,7 +2,7 @@
   "buildCommand": "cd frontend && npm install && npm run build",
   "outputDirectory": "frontend/build",
   "routes": [
-    { "src": "/api/loads", "dest": "/api/loads.go" },
+    { "src": "/api/loads(.*)", "dest": "/api/loads.go" },
     { "src": "/(.*)", "dest": "/frontend/build/index.html" }
   ]
 }
