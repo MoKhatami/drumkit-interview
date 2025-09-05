@@ -12,6 +12,7 @@ import (
 
 type Load struct {
 	ID          string `json:"id"`
+	NumericID   string `json:"numericId,omitempty"`
 	Origin      string `json:"origin"`
 	Destination string `json:"destination"`
 	Customer    string `json:"customer"`
@@ -26,11 +27,12 @@ type TurvoAuthResponse struct {
 }
 
 type TurvoShipment struct {
-	ID            string `json:"id"`
+	ID            interface{} `json:"id"`
 	ProjectFields struct {
 		Title struct {
 			DisplayID string `json:"displayId"`
 		} `json:"title"`
+		ShipmentID int `json:"shipmentId"`
 	} `json:"projectFields"`
 	Details struct {
 		Lane struct {
@@ -144,6 +146,7 @@ func handleGetLoads(w http.ResponseWriter, r *http.Request) {
 	for _, shipment := range turvoResp.Shipments {
 		load := Load{
 			ID:          shipment.ProjectFields.Title.DisplayID,
+			NumericID:   fmt.Sprintf("%d", shipment.ProjectFields.ShipmentID),
 			Origin:      shipment.Details.Lane.Start,
 			Destination: shipment.Details.Lane.End,
 			Status:      shipment.Details.Status.Description,
@@ -257,8 +260,8 @@ func handleCreateLoad(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleDeleteLoad(w http.ResponseWriter, r *http.Request) {
-	id := r.URL.Query().Get("id")
-	if id == "" {
+	displayId := r.URL.Query().Get("id")
+	if displayId == "" {
 		http.Error(w, "ID parameter required", http.StatusBadRequest)
 		return
 	}
@@ -269,11 +272,40 @@ func handleDeleteLoad(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Try to delete using the provided ID
-	deleteReq, _ := http.NewRequest("DELETE", "https://my-sandbox.turvo.com/api/shipments/"+id, nil)
-	deleteReq.Header.Set("Authorization", "Bearer "+token)
+	// First, get all shipments to find the numeric ID for this display ID
+	shipmentsReq, _ := http.NewRequest("GET", "https://my-sandbox.turvo.com/api/shipments/list", nil)
+	shipmentsReq.Header.Set("Authorization", "Bearer "+token)
+	shipmentsReq.Header.Set("Accept", "application/json")
 
 	client := &http.Client{}
+	shipmentsResp, err := client.Do(shipmentsReq)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to get shipments: %v", err), http.StatusInternalServerError)
+		return
+	}
+	defer shipmentsResp.Body.Close()
+
+	var turvoResp TurvoShipmentsResponse
+	json.NewDecoder(shipmentsResp.Body).Decode(&turvoResp)
+
+	// Find the numeric ID for this display ID
+	var numericId string
+	for _, shipment := range turvoResp.Shipments {
+		if shipment.ProjectFields.Title.DisplayID == displayId {
+			numericId = fmt.Sprintf("%d", shipment.ProjectFields.ShipmentID)
+			break
+		}
+	}
+
+	if numericId == "" {
+		http.Error(w, "Shipment not found", http.StatusNotFound)
+		return
+	}
+
+	// Now delete using the numeric ID
+	deleteReq, _ := http.NewRequest("DELETE", "https://my-sandbox.turvo.com/api/shipments/"+numericId, nil)
+	deleteReq.Header.Set("Authorization", "Bearer "+token)
+
 	resp, err := client.Do(deleteReq)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to delete shipment: %v", err), http.StatusInternalServerError)
