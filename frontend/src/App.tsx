@@ -205,8 +205,7 @@ const App: React.FC = () => {
                                     <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
                                         Customer Name:
                                     </label>
-                                    <input
-                                        type="text"
+                                    <select
                                         name="customer"
                                         value={formData.customer}
                                         onChange={handleInputChange}
@@ -217,7 +216,10 @@ const App: React.FC = () => {
                                             border: '1px solid #ccc',
                                             borderRadius: '4px'
                                         }}
-                                    />
+                                    >
+                                        <option value="">Select a customer...</option>
+                                        <option value="37th St Bakery">37th St Bakery</option>
+                                    </select>
                                 </div>
                             </div>
 
