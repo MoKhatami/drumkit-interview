@@ -1,0 +1,458 @@
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"os"
+
+	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
+)
+
+type Load struct {
+	ExternalTMSLoadID string         `json:"externalTMSLoadID"`
+	FreightLoadID     string         `json:"freightLoadID,omitempty"`
+	Status            string         `json:"status"`
+	Customer          Customer       `json:"customer"`
+	Pickup            Location       `json:"pickup,omitempty"`
+	Consignee         Location       `json:"consignee,omitempty"`
+	Carrier           Carrier        `json:"carrier,omitempty"`
+	Specifications    Specifications `json:"specifications,omitempty"`
+}
+
+type Customer struct {
+	Name string `json:"name"`
+}
+
+type Location struct {
+	Name    string `json:"name,omitempty"`
+	City    string `json:"city"`
+	State   string `json:"state"`
+	Country string `json:"country,omitempty"`
+}
+
+type Carrier struct {
+	Name string `json:"name,omitempty"`
+}
+
+type Specifications struct {
+	TotalWeight    float64 `json:"totalWeight,omitempty"`
+	NumCommodities int     `json:"numCommodities,omitempty"`
+	RouteMiles     float64 `json:"routeMiles,omitempty"`
+}
+
+type CreateLoadRequest struct {
+	Customer        string `json:"customer"`
+	Carrier         string `json:"carrier"`
+	Pickup          string `json:"pickup"`
+	PickupState     string `json:"pickupState"`
+	PickupCountry   string `json:"pickupCountry"`
+	Delivery        string `json:"delivery"`
+	DeliveryState   string `json:"deliveryState"`
+	DeliveryCountry string `json:"deliveryCountry"`
+}
+
+// Global token variable
+var turvoToken string
+
+func getTurvoToken() string {
+	// OAuth request payload
+	payload := map[string]string{
+		"grant_type":    "password",
+		"client_id":     os.Getenv("TURVO_CLIENT_ID"),
+		"client_secret": os.Getenv("TURVO_CLIENT_SECRET"),
+		"username":      os.Getenv("TURVO_USERNAME"),
+		"password":      os.Getenv("TURVO_PASSWORD"),
+		"scope":         "read+trust+write",
+		"type":          "business",
+	}
+
+	jsonData, _ := json.Marshal(payload)
+
+	authURL := fmt.Sprintf("%s/v1/oauth/token?client_id=%s&client_secret=%s", 
+		os.Getenv("TURVO_AUTH_URL"), 
+		os.Getenv("TURVO_CLIENT_ID"), 
+		os.Getenv("TURVO_CLIENT_SECRET"))
+
+	req, _ := http.NewRequest("POST", authURL, bytes.NewBuffer(jsonData))
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("x-api-key", os.Getenv("TURVO_API_KEY"))
+
+	client := &http.Client{}
+	resp, _ := client.Do(req)
+	defer resp.Body.Close()
+
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+
+	return result["access_token"].(string)
+}
+
+func createCustomer(name string) (int, error) {
+	payload := map[string]interface{}{
+		"name": name,
+		"address": []map[string]interface{}{
+			{
+				"line1":     "123 Main St",
+				"city":      "New York",
+				"state":     "NY",
+				"zip":       "10001",
+				"country":   "US",
+				"type": map[string]interface{}{
+					"key":   "1000",
+					"value": "Business",
+				},
+				"isPrimary": true,
+			},
+		},
+	}
+
+	jsonData, _ := json.Marshal(payload)
+	createURL := fmt.Sprintf("%s/api/customers", os.Getenv("TURVO_BASE_URL"))
+	req, _ := http.NewRequest("POST", createURL, bytes.NewBuffer(jsonData))
+	req.Header.Set("Authorization", "Bearer "+turvoToken)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
+	client := &http.Client{}
+	resp, _ := client.Do(req)
+	defer resp.Body.Close()
+
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+
+	if resp.StatusCode == 200 || resp.StatusCode == 201 {
+		if id, ok := result["id"].(float64); ok {
+			return int(id), nil
+		}
+	}
+	return 0, fmt.Errorf("failed to create customer")
+}
+
+func createCarrier(name string) (int, error) {
+	payload := map[string]interface{}{
+		"name": name,
+		"address": []map[string]interface{}{
+			{
+				"line1":     "456 Carrier Ave",
+				"city":      "Chicago",
+				"state":     "IL",
+				"zip":       "60601",
+				"country":   "US",
+				"type": map[string]interface{}{
+					"key":   "1000",
+					"value": "Business",
+				},
+				"isPrimary": true,
+			},
+		},
+	}
+
+	jsonData, _ := json.Marshal(payload)
+	createURL := fmt.Sprintf("%s/api/carriers", os.Getenv("TURVO_BASE_URL"))
+	req, _ := http.NewRequest("POST", createURL, bytes.NewBuffer(jsonData))
+	req.Header.Set("Authorization", "Bearer "+turvoToken)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
+	client := &http.Client{}
+	resp, _ := client.Do(req)
+	defer resp.Body.Close()
+
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+
+	if resp.StatusCode == 200 || resp.StatusCode == 201 {
+		if id, ok := result["id"].(float64); ok {
+			return int(id), nil
+		}
+	}
+	return 0, fmt.Errorf("failed to create carrier")
+}
+
+func main() {
+	// Load environment variables
+	err := godotenv.Load()
+	if err != nil {
+		fmt.Println("Warning: Error loading .env file")
+	}
+
+	// Get token on startup
+	turvoToken = getTurvoToken()
+
+	r := gin.Default()
+
+	// Add CORS middleware
+	r.Use(func(c *gin.Context) {
+		c.Header("Access-Control-Allow-Origin", "http://localhost:3000")
+		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+
+		c.Next()
+	})
+
+	r.GET("/api/loads", listLoads)
+	r.POST("/api/loads", createLoad)
+	r.Run(":8080")
+}
+
+func listLoads(c *gin.Context) {
+	// Call Turvo API
+	apiURL := fmt.Sprintf("%s/api/shipments/list?pageSize=10", os.Getenv("TURVO_BASE_URL"))
+	req, _ := http.NewRequest("GET", apiURL, nil)
+	req.Header.Set("Authorization", "Bearer "+turvoToken)
+	req.Header.Set("Accept", "application/json")
+
+	client := &http.Client{}
+	resp, _ := client.Do(req)
+	defer resp.Body.Close()
+
+	var turvoResponse map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&turvoResponse)
+
+	// Extract shipments array
+	shipments := turvoResponse["shipments"].([]interface{})
+	loads := make([]Load, 0) // Declare loads variable here
+
+	for _, shipment := range shipments {
+		s := shipment.(map[string]interface{})
+
+		// Get shipment ID
+		id := fmt.Sprintf("%.0f", s["id"].(float64))
+
+		// Get customer name
+		customer := Customer{Name: "Unknown"}
+
+		// Debug: Print the entire shipment structure for new loads
+		if id == "1000280602" || id == "1000280594" || id == "1000280593" {
+			fmt.Printf("DEBUG - Full shipment structure for ID %s: %+v\n", id, s)
+		}
+
+		if pf, ok := s["projectFields"].(map[string]interface{}); ok {
+			if title, ok := pf["title"].(map[string]interface{}); ok {
+				if customers, ok := title["customer"].([]interface{}); ok && len(customers) > 0 {
+					if cust, ok := customers[0].(map[string]interface{}); ok {
+						if name, ok := cust["name"].(string); ok {
+							customer.Name = name
+							fmt.Printf("DEBUG - Customer extraction:\n")
+							fmt.Printf("  projectFields exists: %v\n", pf != nil)
+							if pf != nil {
+								fmt.Printf("  title exists: %v\n", title != nil)
+								if title != nil {
+									fmt.Printf("  customers array exists: %v\n", customers != nil)
+									if customers != nil && len(customers) > 0 {
+										fmt.Printf("  first customer: %+v\n", customers[0])
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+		// If customer is still "Unknown", try direct customer field
+		if customer.Name == "Unknown" {
+			if cust, ok := s["customer"].(map[string]interface{}); ok {
+				if name, ok := cust["name"].(string); ok {
+					customer.Name = name
+					fmt.Printf("DEBUG - Found customer in direct field: %s\n", name)
+				}
+			}
+		}
+
+		// If still unknown, try customerOrder array
+		if customer.Name == "Unknown" {
+			if customerOrders, ok := s["customerOrder"].([]interface{}); ok && len(customerOrders) > 0 {
+				if order, ok := customerOrders[0].(map[string]interface{}); ok {
+					if cust, ok := order["customer"].(map[string]interface{}); ok {
+						if name, ok := cust["name"].(string); ok {
+							customer.Name = name
+							fmt.Printf("DEBUG - Found customer in customerOrder: %s\n", name)
+						}
+					}
+				}
+			}
+		}
+
+		// Get carrier name
+		carrier := Carrier{Name: "Unknown"}
+		if carr, ok := s["carrier"].(map[string]interface{}); ok {
+			if name, ok := carr["name"].(string); ok {
+				carrier.Name = name
+				fmt.Printf("DEBUG - Found carrier: %s\n", name)
+			}
+		}
+
+		// If carrier still unknown, try carrierOrder array
+		if carrier.Name == "Unknown" {
+			if carrierOrders, ok := s["carrierOrder"].([]interface{}); ok && len(carrierOrders) > 0 {
+				if order, ok := carrierOrders[0].(map[string]interface{}); ok {
+					if carr, ok := order["carrier"].(map[string]interface{}); ok {
+						if name, ok := carr["name"].(string); ok {
+							carrier.Name = name
+							fmt.Printf("DEBUG - Found carrier in carrierOrder: %s\n", name)
+						}
+					}
+				}
+			}
+		}
+
+		// Get status
+		status := "Unknown"
+		if pf, ok := s["projectFields"].(map[string]interface{}); ok {
+			if statusInfo, ok := pf["status"].(map[string]interface{}); ok {
+				if desc, ok := statusInfo["description"].(string); ok {
+					status = desc
+				}
+			}
+		}
+
+		// Get pickup/delivery locations from route
+		pickup := Location{}
+		consignee := Location{}
+		if pf, ok := s["projectFields"].(map[string]interface{}); ok {
+			if routeInfo, ok := pf["route"].(map[string]interface{}); ok {
+				if start, ok := routeInfo["start"].(string); ok {
+					pickup.City = start
+				}
+				if end, ok := routeInfo["end"].(string); ok {
+					consignee.City = end
+				}
+			}
+		}
+
+		fmt.Printf("Transformed load: ID=%s, Customer=%s, Status=%s, Pickup=%s, Consignee=%s\n",
+			id, customer.Name, status, pickup.City, consignee.City)
+
+		loads = append(loads, Load{
+			ExternalTMSLoadID: id,
+			Status:            status,
+			Customer:          customer,
+			Pickup:            pickup,
+			Consignee:         consignee,
+			Carrier:           carrier,
+		})
+	}
+
+	c.JSON(200, gin.H{"loads": loads})
+}
+
+func main() {
+	fmt.Println("=== CREATE LOAD FUNCTION CALLED ===")
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println("PANIC in createLoad:", r)
+			c.JSON(500, gin.H{"error": "Internal server error"})
+		}
+	}()
+
+	var req CreateLoadRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		fmt.Println("JSON binding error:", err)
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	fmt.Printf("Request data: %+v\n", req)
+
+	// Create customer and carrier first
+	customerID, err := createCustomer(req.Customer)
+	if err != nil {
+		fmt.Printf("Error creating customer: %v\n", err)
+		c.JSON(500, gin.H{"error": "Failed to create customer"})
+		return
+	}
+
+	carrierID, err := createCarrier(req.Carrier)
+	if err != nil {
+		fmt.Printf("Error creating carrier: %v\n", err)
+		c.JSON(500, gin.H{"error": "Failed to create carrier"})
+		return
+	}
+
+	fmt.Printf("Created customer ID: %d, carrier ID: %d\n", customerID, carrierID)
+
+	// Create Turvo shipment payload with customer and carrier IDs
+	payload := map[string]interface{}{
+		"ltlShipment": false,
+		"startDate": map[string]interface{}{
+			"date":     "2025-09-05T08:00:00Z",
+			"timeZone": "America/New_York",
+		},
+		"endDate": map[string]interface{}{
+			"date":     "2025-09-06T17:00:00Z",
+			"timeZone": "America/New_York",
+		},
+		"lane": map[string]interface{}{
+			"start": req.Pickup + ", " + req.PickupState + ", " + req.PickupCountry,
+			"end":   req.Delivery + ", " + req.DeliveryState + ", " + req.DeliveryCountry,
+		},
+		"customerOrder": []map[string]interface{}{
+			{
+				"customer": map[string]interface{}{
+					"id":   customerID,
+					"name": req.Customer,
+				},
+				"items": []map[string]interface{}{
+					{
+						"name": "General Freight",
+						"qty":  1,
+						"unit": map[string]interface{}{
+							"key":   "6000",
+							"value": "Pieces",
+						},
+						"itemCategory": map[string]interface{}{
+							"key":   "22300",
+							"value": "Other",
+						},
+					},
+				},
+			},
+		},
+		"carrierOrder": []map[string]interface{}{
+			{
+				"carrier": map[string]interface{}{
+					"id":   carrierID,
+					"name": req.Carrier,
+				},
+			},
+		},
+	}
+
+	jsonData, _ := json.Marshal(payload)
+
+	// Call Turvo create API
+	createURL := fmt.Sprintf("%s/api/shipments", os.Getenv("TURVO_BASE_URL"))
+	httpReq, _ := http.NewRequest("POST", createURL, bytes.NewBuffer(jsonData))
+	httpReq.Header.Set("Authorization", "Bearer "+turvoToken)
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Accept", "application/json")
+
+	client := &http.Client{}
+	resp, _ := client.Do(httpReq)
+	defer resp.Body.Close()
+
+	fmt.Println("Turvo API response status:", resp.StatusCode)
+
+	var result map[string]interface{}
+	json.NewDecoder(resp.Body).Decode(&result)
+
+	fmt.Printf("Turvo API response: %+v\n", result)
+
+	// Return a properly structured Load object instead of raw Turvo response
+	if resp.StatusCode == 200 || resp.StatusCode == 201 {
+		// Just return success - let the frontend refresh the list to get proper data
+		c.JSON(200, gin.H{"success": true, "message": "Load created successfully"})
+	} else {
+		c.JSON(resp.StatusCode, result)
+	}
+}
