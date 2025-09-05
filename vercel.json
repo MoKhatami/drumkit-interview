@@ -17,15 +17,5 @@
       "src": "/(.*)",
       "dest": "/frontend/$1"
     }
-  ],
-  "build": {
-    "env": {
-      "TURVO_AUTH_URL": "https://my-sandbox-publicapi.turvo.com",
-      "TURVO_CLIENT_ID": "publicapi",
-      "TURVO_CLIENT_SECRET": "secret",
-      "TURVO_API_KEY": "9VjKgnIlQS1255cn7cRvJ6jNf8Z4MElP1PGgBTsH",
-      "TURVO_USERNAME": "axle@wickerparklogistics.com",
-      "TURVO_PASSWORD": "DZJ@pcu_qzd8ecz0fgw"
-    }
-  }
+  ]
 }
